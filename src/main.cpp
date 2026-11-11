@@ -1,3 +1,4 @@
+/*
 #include <Arduino.h>
 #include <ESP32Servo.h>
 #include <L298NX2.h>
@@ -20,9 +21,9 @@ int directionB = L298N::FORWARD;
 L298NX2 motors(EN_A, IN1_A, IN2_A, EN_B, IN1_B, IN2_B);
 
 // Motor Driver #2 (RACK PINION)
-const unsigned int EN_C = 10;
-const unsigned int IN1_C = 12;
-const unsigned int IN2_C = 13;
+const unsigned int EN_C = 27;
+const unsigned int IN1_C = 26;
+const unsigned int IN2_C = 14;
 
 const unsigned int IN1_D = 14;
 const unsigned int IN2_D = 16;
@@ -34,14 +35,30 @@ int directionC = L298N::FORWARD;
 unsigned long delayD = 3000;
 int directionD = L298N::FORWARD;
 
-L298NX2 randp(EN_C, IN1_C, IN2_C, EN_D, IN1_D, IN2_D);
+L298N randp(EN_C, IN1_C, IN2_C);
 
 // Servo
 Servo claw;
-const int SERVO_PIN = 10; // Placeholder for pin later
+const int SERVO_PIN = 25; // Placeholder for pin later
 
 int pos = 0; // variable to store the servo position
 // Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
+// Step variable can be used within each callback function to move in different directions if joysticks are used
+void callbackA()
+{
+}
+
+void callbackB()
+{
+}
+
+void callbackC()
+{
+}
+
+void callbackD()
+{
+}
 
 void setup()
 {
@@ -53,13 +70,7 @@ void setup()
   motors.setSpeedA(80);
   motors.setSpeedB(80);
 
-  randp.setSpeedA(80);
-  randp.setSpeedB(80);
-}
-
-void loop()
-{
-  claw.setPeriodHertz(50); // set PWM period, gotten from datasheet
+  randp.setSpeed(80);
 }
 
 // Testing to see the range of the servo, could simplify with a loop
@@ -88,27 +99,31 @@ void moveBackward()
 
 void lift()
 {
-  randp.runForA(delayC, L298N::FORWARD, callbackC);
+  randp.runFor(delayC, L298N::FORWARD, callbackC);
 }
 
 void lower()
 {
-  randp.runForA(delayC, L298N::BACKWARD, callbackC);
+  randp.runFor(delayC, L298N::BACKWARD, callbackC);
 }
 
-// Step variable can be used within each callback function to move in different directions if joysticks are used
-void callbackA()
+void LiftAndLower()
 {
+  randp.runFor(delayC, L298N::FORWARD, callbackC);
+  randp.runFor(delayC, L298N::BACKWARD, callbackC);
 }
 
-void callbackB()
+void printSomeInfo()
 {
+  Serial.print("Motor is moving = ");
+  Serial.print(randp.isMoving());
+  Serial.print(" at speed = ");
+  Serial.println(randp.getSpeed());
 }
 
-void callbackC()
+void loop()
 {
+  // claw.setPeriodHertz(50); // set PWM period, gotten from datasheet
+  clawOpenClose();
 }
-
-void callbackD()
-{
-}
+*/

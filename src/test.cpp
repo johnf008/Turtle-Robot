@@ -1,146 +1,87 @@
-/*
-Author  : Andrea Lombardo
-Site    : https://www.lombardoandrea.com
-Source  : https://github.com/AndreaLombardo/L298N/
+/* Sweep
+ by BARRAGAN <http://barraganstudio.com>
+ This example code is in the public domain.
 
-Here you can see how to work with two motors each with different callback.
+ modified 8 Nov 2013
+ by Scott Fitzgerald
 
-L298NX2 is not a new version of module or IC,
-but it stands for a double implementation of L298N library.
+ modified for the ESP32 on March 2017
+ by John Bennett
 
-With L298NX2 is possible to initialize two motors at once.
+ see http://www.arduino.cc/en/Tutorial/Sweep for a description of the original code
 
-Speed range go from 0 to 255, default is 100.
-Use setSpeed(speed) to change speed for both motors,
-setSpeedA(speed) or setSpeedB(speed) for individual changes.
+ * Different servos require different pulse widths to vary servo angle, but the range is
+ * an approximately 500-2500 microsecond pulse every 20ms (50Hz). In general, hobbyist servos
+ * sweep 180 degrees, so the lowest number in the published range for a particular servo
+ * represents an angle of 0 degrees, the middle of the range represents 90 degrees, and the top
+ * of the range represents 180 degrees. So for example, if the range is 1000us to 2000us,
+ * 1000us would equal an angle of 0, 1500us would equal 90 degrees, and 2000us would equal 1800
+ * degrees.
+ *
+ * Circuit: (using an ESP32 Thing from Sparkfun)
+ * Servo motors have three wires: power, ground, and signal. The power wire is typically red,
+ * the ground wire is typically black or brown, and the signal wire is typically yellow,
+ * orange or white. Since the ESP32 can supply limited current at only 3.3V, and servos draw
+ * considerable power, we will connect servo power to the VBat pin of the ESP32 (located
+ * near the USB connector). THIS IS ONLY APPROPRIATE FOR SMALL SERVOS.
+ *
+ * We could also connect servo power to a separate external
+ * power source (as long as we connect all of the grounds (ESP32, servo, and external power).
+ * In this example, we just connect ESP32 ground to servo ground. The servo signal pins
+ * connect to any available GPIO pins on the ESP32 (in this example, we use pin 18.
+ *
+ * In this example, we assume a Tower Pro MG995 large servo connected to an external power source.
+ * The published min and max for this servo is 1000 and 2000, respectively, so the defaults are fine.
+ * These values actually drive the servos a little past 0 and 180, so
+ * if you are particular, adjust the min and max values to match your needs.
+ */
 
-Wiring schema in file "L298NX2 - Schema_with_EN_pin.png"
-*/
+#include <ESP32Servo.h>
 
-// Include the (new) library
-#include <L298NX2.h>
+Servo myservo; // create servo object to control a servo
+// 16 servo objects can be created on the ESP32
 
-const unsigned int EN_A = 3;
-const unsigned int IN1_A = 5;
-const unsigned int IN2_A = 6;
-
-const unsigned int IN1_B = 7;
-const unsigned int IN2_B = 8;
-const unsigned int EN_B = 9;
-
-// Initialize both motors
-L298NX2 motors(EN_A, IN1_A, IN2_A, EN_B, IN1_B, IN2_B);
+int pos = 0; // variable to store the servo position
+// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
+// Possible PWM GPIO pins on the ESP32-S2: 0(used by on-board button),1-17,18(used by on-board LED),19-21,26,33-42
+// Possible PWM GPIO pins on the ESP32-S3: 0(used by on-board button),1-21,35-45,47,48(used by on-board LED)
+// Possible PWM GPIO pins on the ESP32-C3: 0(used by on-board button),1-7,8(used by on-board LED),9-10,18-21
+#if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)
+int servoPin = 17;
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+int servoPin = 7;
+#else
+int servoPin = 18;
+#endif
 
 void setup()
 {
-    // Used to display information
-    Serial.begin(9600);
-
-    // Wait for Serial Monitor to be opened
-    while (!Serial)
-    {
-        // do nothing
-    }
-
-    motors.setSpeedA(120);
-    motors.setSpeedB(80);
-
-    // Print initial information
-    printInfo();
+    // Allow allocation of all timers
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
+    myservo.setPeriodHertz(50);           // standard 50 hz servo
+    myservo.attach(servoPin, 1050, 1550); // attaches the servo on pin 18 to the servo object, the following min and max values work to hold the stack: (1050, 1550)
+                                          // using default min/max of 1000us and 2000us
+                                          // different servos may require different min/max settings
+                                          // for an accurate 0 to 180 sweep
 }
-
-int stepA = 1;
-unsigned long delayA = 3000;
-int directionA = L298N::FORWARD;
-
-unsigned long delayB = 3000;
-int directionB = L298N::BACKWARD;
 
 void loop()
 {
-    // Drive both motors without blocking code execution
-    // motors.runForA(delayA, directionA, callbackA);
-    // motors.runForB(delayB, directionB, callbackB);
+    delay(3000);
 
-    // Other stuff...
-}
-
-/*
-Based on the number of current step, perform some changes for motor A.
-*/
-void callbackA()
-{
-    switch (stepA)
-    {
-    case 1:
-        delayA = 10000;
-        directionA = L298N::BACKWARD;
-        motors.setSpeedA(90);
-        motors.resetA();
-        break;
-
-    case 2:
-        delayA = 5000;
-        directionA = L298N::FORWARD;
-        motors.setSpeedA(130);
-        motors.resetA();
-        break;
-
-    case 3:
-        delayA = 10000;
-        directionA = L298N::STOP;
-        motors.setSpeedA(90);
-        motors.resetA();
-        break;
-
-    case 4:
-        delayA = 10000;
-        directionA = L298N::BACKWARD;
-        motors.setSpeedA(90);
-        motors.resetA();
-        break;
-
-    case 5:
-        delayA = 5000;
-        directionA = L298N::FORWARD;
-        motors.setSpeedA(200);
-        motors.resetA();
-        break;
+    for (pos = 0; pos <= 180; pos += 10)
+    { // goes from 0 degrees to 180 degrees
+        // in steps of 1 degree
+        myservo.write(pos); // tell servo to go to position in variable 'pos'
+        delay(3);           // waits 15ms for the servo to reach the position
     }
-
-    if (stepA < 4)
-    {
-        stepA++;
+    delay(3000);
+    for (pos = 180; pos >= 0; pos -= 10)
+    {                       // goes from 180 degrees to 0 degrees
+        myservo.write(pos); // tell servo to go to position in variable 'pos'
+        delay(3);           // waits 15ms for the servo to reach the position
     }
-    else
-    {
-        stepA = 1;
-    }
-
-    printInfo();
-}
-
-/*
-Each time is called, invert direction for motor B.
-*/
-void callbackB()
-{
-    directionB = !directionB;
-    motors.resetB();
-}
-
-// Print info in Serial Monitor
-void printInfo()
-{
-    Serial.print("Motor A | Speed = ");
-    Serial.print(motors.getSpeedA());
-    Serial.print(" | Direction = ");
-    Serial.print(motors.getDirectionA());
-    Serial.print(" | Next step = ");
-    Serial.println(stepA);
-
-    Serial.print("Motor B | Speed = ");
-    Serial.print(motors.getSpeedB());
-    Serial.print(" | Direction = ");
-    Serial.println(motors.getDirectionB());
 }
