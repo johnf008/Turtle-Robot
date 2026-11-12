@@ -1,129 +1,89 @@
-/*
-#include <Arduino.h>
 #include <ESP32Servo.h>
 #include <L298NX2.h>
+#include <TurtleReceiver.h>
 
-// Motor Driver #1 (DRIVE)
-const unsigned int EN_A = 3;
-const unsigned int IN1_A = 5;
-const unsigned int IN2_A = 6;
+NetController controller;
 
-const unsigned int IN1_B = 7;
-const unsigned int IN2_B = 8;
-const unsigned int EN_B = 9;
+Servo myservo; // create servo object to control a servo
+//  16 servo objects can be created on the ESP32
 
-unsigned long delayA = 3000;
-int directionA = L298N::FORWARD;
-
-unsigned long delayB = 3000;
-int directionB = L298N::FORWARD;
-
-L298NX2 motors(EN_A, IN1_A, IN2_A, EN_B, IN1_B, IN2_B);
+int pos = 0; // variable to store the servo position
+// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
+// Possible PWM GPIO pins on the ESP32-S2: 0(used by on-board button),1-17,18(used by on-board LED),19-21,26,33-42
+// Possible PWM GPIO pins on the ESP32-S3: 0(used by on-board button),1-21,35-45,47,48(used by on-board LED)
+// Possible PWM GPIO pins on the ESP32-C3: 0(used by on-board button),1-7,8(used by on-board LED),9-10,18-21
+#if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)
+int servoPin = 17;
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+int servoPin = 7;
+#else
+int servoPin = 18;
+#endif
 
 // Motor Driver #2 (RACK PINION)
-const unsigned int EN_C = 27;
-const unsigned int IN1_C = 26;
-const unsigned int IN2_C = 14;
+const unsigned int EN_C = 14;
+const unsigned int IN1_C = 27;
+const unsigned int IN2_C = 26;
 
 const unsigned int IN1_D = 14;
 const unsigned int IN2_D = 16;
 const unsigned int EN_D = 17;
 
-unsigned long delayC = 1000;
+unsigned long delayC = 2000;
 int directionC = L298N::FORWARD;
 
-unsigned long delayD = 3000;
+unsigned long delayD = 5;
 int directionD = L298N::FORWARD;
 
 L298N randp(EN_C, IN1_C, IN2_C);
 
-// Servo
-Servo claw;
-const int SERVO_PIN = 25; // Placeholder for pin later
-
-int pos = 0; // variable to store the servo position
-// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
-// Step variable can be used within each callback function to move in different directions if joysticks are used
-void callbackA()
-{
-}
-
-void callbackB()
-{
-}
-
-void callbackC()
-{
-}
-
-void callbackD()
-{
-}
+// initial speed
+unsigned short speed = 200;
 
 void setup()
 {
-  // put your setup code here, to run once:
-  Serial.begin(115200); // setup serial monitor with rate of 115200 bits per second
-  claw.setPeriodHertz(50);
-  claw.attach(SERVO_PIN, 1000, 2000);
+    // Allow allocation of all timers
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
+    myservo.setPeriodHertz(50);          // standard 50 hz servo
+    myservo.attach(servoPin, 950, 1550); // attaches the servo on pin 18 to the servo object, the following min and max values work to hold the stack: (1050, 1550)
 
-  motors.setSpeedA(80);
-  motors.setSpeedB(80);
-
-  randp.setSpeed(80);
-}
-
-// Testing to see the range of the servo, could simplify with a loop
-void clawOpenClose()
-{
-  claw.write(0);
-  delay(3000);
-  claw.write(60);
-  delay(3000);
-  claw.write(120);
-  delay(3000);
-  claw.write(180);
-}
-
-void moveForward()
-{
-  motors.runForA(delayA, L298N::FORWARD, callbackA);
-  motors.runForB(delayB, L298N::FORWARD, callbackB);
-}
-
-void moveBackward()
-{
-  motors.runForA(delayA, L298N::BACKWARD, callbackA);
-  motors.runForB(delayB, L298N::BACKWARD, callbackB);
-}
-
-void lift()
-{
-  randp.runFor(delayC, L298N::FORWARD, callbackC);
-}
-
-void lower()
-{
-  randp.runFor(delayC, L298N::BACKWARD, callbackC);
-}
-
-void LiftAndLower()
-{
-  randp.runFor(delayC, L298N::FORWARD, callbackC);
-  randp.runFor(delayC, L298N::BACKWARD, callbackC);
-}
-
-void printSomeInfo()
-{
-  Serial.print("Motor is moving = ");
-  Serial.print(randp.isMoving());
-  Serial.print(" at speed = ");
-  Serial.println(randp.getSpeed());
+    // using default min/max of 1000us and 2000us
+    // different servos may require different min/max settings
+    // for an accurate 0 to 180 sweep
+    randp.setSpeed(speed);
+    controller.controllerSetup();
+    Serial.begin(115200);
+    printMacAddress();
 }
 
 void loop()
 {
-  // claw.setPeriodHertz(50); // set PWM period, gotten from datasheet
-  clawOpenClose();
+
+    for (pos = 0; pos <= 180; pos += 30)
+    { // goes from 0 degrees to 180 degrees
+        // in steps of 1 degree
+        myservo.write(pos); // tell servo to go to position in variable 'pos'
+        delay(3);           // waits 15ms for the servo to reach the position
+    }
+    delay(3000);
+    for (pos = 180; pos >= 0; pos -= 30)
+    {                       // goes from 180 degrees to 0 degrees
+        myservo.write(pos); // tell servo to go to position in variable 'pos'
+        delay(3);           // waits 15ms for the servo to reach the position
+    }
+
+    delay(3000);
+
+    randp.setSpeed(255);
+    randp.forward();
+    delay(750);
+
+    randp.setSpeed(speed);
+    randp.backward();
+    delay(750);
+
+    randp.stop();
 }
-*/
