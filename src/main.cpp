@@ -4,56 +4,69 @@
 
 NetController controller;
 
-Servo myservo; // create servo object to control a servo
-//  16 servo objects can be created on the ESP32
+Servo carriageservo;
 
-int pos = 0; // variable to store the servo position
-// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
-// Possible PWM GPIO pins on the ESP32-S2: 0(used by on-board button),1-17,18(used by on-board LED),19-21,26,33-42
-// Possible PWM GPIO pins on the ESP32-S3: 0(used by on-board button),1-21,35-45,47,48(used by on-board LED)
-// Possible PWM GPIO pins on the ESP32-C3: 0(used by on-board button),1-7,8(used by on-board LED),9-10,18-21
 #if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)
-int servoPin = 17;
+constexpr int servoPin = 17;
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
-int servoPin = 7;
+constexpr int servoPin = 7;
 #else
-int servoPin = 18;
+constexpr int servoPin = 18;
 #endif
 
-// Motor Driver #2 (RACK PINION)
-const unsigned int EN_C = 14;
-const unsigned int IN1_C = 27;
-const unsigned int IN2_C = 26;
+constexpr unsigned int EN_C = 14;
+constexpr unsigned int IN1_C = 27;
+constexpr unsigned int IN2_C = 26;
 
-const unsigned int IN1_D = 14;
-const unsigned int IN2_D = 16;
-const unsigned int EN_D = 17;
+constexpr unsigned int EN_LEFT = 25;
+constexpr unsigned int IN1_LEFT = 33;
+constexpr unsigned int IN2_LEFT = 32;
 
-unsigned long delayC = 2000;
-int directionC = L298N::FORWARD;
+constexpr unsigned int EN_RIGHT = 23;
+constexpr unsigned int IN1_RIGHT = 21;
+constexpr unsigned int IN2_RIGHT = 22;
 
-unsigned long delayD = 5;
-int directionD = L298N::FORWARD;
+L298N carriagemotor(EN_C, IN1_C, IN2_C);
+L298N leftmotor(EN_LEFT, IN1_LEFT, IN2_LEFT);
+L298N rightmotor(EN_RIGHT, IN1_RIGHT, IN2_RIGHT);
 
-L298N randp(EN_C, IN1_C, IN2_C);
+constexpr unsigned short carriageSpeed = 100;
+constexpr unsigned short leftMotorSpeed = 100;
+constexpr unsigned short rightMotorSpeed = 100;
 
-// initial speed
-unsigned short speed = 200;
+void setDriveMotor(L298N& motor, float output, unsigned short maxSpeed)
+{
+    constexpr float deadzone = 0.05f;
+
+    if (output > 1.0f) {
+        output = 1.0f;
+    } else if (output < -1.0f) {
+        output = -1.0f;
+    }
+
+    if (output > deadzone) {
+        motor.setSpeed(static_cast<unsigned short>(maxSpeed * output));
+        motor.forward();
+    } else if (output < -deadzone) {
+        motor.setSpeed(static_cast<unsigned short>(maxSpeed * -output));
+        motor.backward();
+    } else {
+        motor.stop();
+    }
+}
 
 void setup()
 {
-    // Allow allocation of all timers
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
     ESP32PWM::allocateTimer(3);
-    myservo.setPeriodHertz(50);          // standard 50 hz servo
-    myservo.attach(servoPin, 950, 1550); // attaches the servo on pin 18 to the servo object, the following min and max values work to hold the stack: (1050, 1550)
+    carriageservo.setPeriodHertz(50);
+    carriageservo.attach(servoPin, 950, 1550);
 
-    // using default min/max of 1000us and 2000us
-    // different servos may require different min/max settings
-    // for an accurate 0 to 180 sweep
-    randp.setSpeed(speed);
+    carriagemotor.setSpeed(carriageSpeed);
+    leftmotor.setSpeed(leftMotorSpeed);
+    rightmotor.setSpeed(rightMotorSpeed);
     controller.controllerSetup();
     Serial.begin(115200);
     printMacAddress();
@@ -61,29 +74,106 @@ void setup()
 
 void loop()
 {
+    // Left stick drives; right stick steers.
+    float forward = controller.getJoy1Y();
+    float turn = controller.getJoy2X();
+    float leftOutput = forward + turn;
+    float rightOutput = forward - turn;
 
-    for (pos = 0; pos <= 180; pos += 30)
-    { // goes from 0 degrees to 180 degrees
-        // in steps of 1 degree
-        myservo.write(pos); // tell servo to go to position in variable 'pos'
-        delay(3);           // waits 15ms for the servo to reach the position
+    float leftMagnitude = leftOutput < 0 ? -leftOutput : leftOutput;
+    float rightMagnitude = rightOutput < 0 ? -rightOutput : rightOutput;
+    float maxMagnitude = leftMagnitude > rightMagnitude ? leftMagnitude : rightMagnitude;
+    if (maxMagnitude > 1.0f) {
+        leftOutput /= maxMagnitude;
+        rightOutput /= maxMagnitude;
     }
-    delay(3000);
-    for (pos = 180; pos >= 0; pos -= 30)
-    {                       // goes from 180 degrees to 0 degrees
-        myservo.write(pos); // tell servo to go to position in variable 'pos'
-        delay(3);           // waits 15ms for the servo to reach the position
+
+    setDriveMotor(leftmotor, leftOutput, leftMotorSpeed);
+    setDriveMotor(rightmotor, rightOutput, rightMotorSpeed);
+
+    // CONTROLLER TOP
+    static bool wasLbPressed = false;
+    static bool wasRbPressed = false;
+    bool lbPressed = controller.getLb();
+    bool rbPressed = controller.getRb();
+    if (lbPressed && !wasLbPressed) {
+        // left bumper pressed
+        // servo moves to grab block
+        for (int pos = 0; pos <= 180; pos += 30) {
+            carriageservo.write(pos);
+            delay(3);
+        }
+    }
+    if (rbPressed && !wasRbPressed) {
+        // right bumper pressed
+        // servo moves to release block
+        for (int pos = 180; pos >= 0; pos -= 30) {
+            carriageservo.write(pos);
+            delay(3);
+        }
+    }
+    wasLbPressed = lbPressed;
+    wasRbPressed = rbPressed;
+    // prevents the code from running multiple times if the bumper is held down, only runs once when the bumper is pressed
+
+    bool leftTrigger = controller.getLt();
+    bool rightTrigger = controller.getRt();
+    if (leftTrigger && !rightTrigger) {
+        carriagemotor.forward();
+    } else if (rightTrigger && !leftTrigger) {
+        carriagemotor.backward();
+    } else {
+        carriagemotor.stop();
     }
 
-    delay(3000);
+    // UNUSED JOYSTICK BUTTONS
 
-    randp.setSpeed(255);
-    randp.forward();
+    /*else if(controller.getJoy1Z() == true){
+        // left joystick button pressed
+    }*/
+    
+    /*else if(controller.getJoy2Y() > 0){
+        // right joystick held up
+    }
+    else if(controller.getJoy2Y() < 0){
+        // right joystick held down
+    }
+    else if(controller.getJoy2Z() == true){
+        // right joystick button pressed
+    }*/
+    /*if(controller.getJoy1X() > 0){
+        // left joystick held right
+    }
+    else if(controller.getJoy1X() < 0){
+        // left joystick held left
+    }*/
+
+    // BUTTONS (unused)
+    /*if (controller.getButtonA() == true){
+        // button A pressed (south)
+    }
+    if (controller.getButtonB() == true){
+        // button B pressed (east)
+    }
+    if (controller.getButtonX() == true){
+        // button X pressed (west)
+    }
+    if (controller.getButtonY() == true){
+        // button Y pressed (north)
+    }
+    if (controller.getDpad() == true){
+        // dpad pressed
+    }*/
+
+    
+    /*
+    carriagemotor.setSpeed(255);
+    carriagemotor.forward();
     delay(750);
 
-    randp.setSpeed(speed);
-    randp.backward();
+    carriagemotor.setSpeed(carriageSpeed);
+    carriagemotor.backward();
     delay(750);
 
-    randp.stop();
+    carriagemotor.stop();*/
 }
