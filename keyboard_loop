@@ -7,29 +7,21 @@ void loop()
         switch (key) {
             // --- DRIVING (WASD + Space) ---
             case 'w': // Forward
-                leftmotor.setSpeed(leftMotorSpeed);
-                rightmotor.setSpeed(rightMotorSpeed);
                 leftmotor.forward();
                 rightmotor.forward();
                 break;
 
             case 's': // Backward
-                leftmotor.setSpeed(leftMotorSpeed);
-                rightmotor.setSpeed(rightMotorSpeed);
                 leftmotor.backward();
                 rightmotor.backward();
                 break;
 
             case 'a': // Turn Left
-                leftmotor.setSpeed(leftMotorSpeed);
-                rightmotor.setSpeed(rightMotorSpeed);
                 leftmotor.backward();
                 rightmotor.forward();
                 break;
 
             case 'd': // Turn Right
-                leftmotor.setSpeed(leftMotorSpeed);
-                rightmotor.setSpeed(rightMotorSpeed);
                 leftmotor.forward();
                 rightmotor.backward();
                 break;
@@ -41,17 +33,13 @@ void loop()
 
             // --- SERVO GRAB / RELEASE (Q / E) ---
             case 'q': // Grab block
-                for (int pos = 0; pos <= 180; pos += 30) {
-                    carriageservo.write(pos);
-                    delay(3);
-                }
+                carriageservo.write(_);
+                delay(3);
                 break;
 
             case 'e': // Release block
-                for (int pos = 180; pos >= 0; pos -= 30) {
-                    carriageservo.write(pos);
-                    delay(3);
-                }
+                carriageservo.write(_);
+                delay(3);
                 break;
 
             // --- CARRIAGE MOTOR (I / K / O) ---
