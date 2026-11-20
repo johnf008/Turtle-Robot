@@ -7,6 +7,10 @@ NetController controller;
 Servo carriageServo;
 const int carriageServoPin = 17;
 
+// Door servo (hinge, opens/closes 90 degrees)
+Servo doorServo;
+const int doorServoPin = 25;
+
 // Motor driver pins
 const unsigned int enablePin = 14;
 
@@ -25,6 +29,8 @@ L298N RightMotor(enablePin, right1_C, right2_C);
 // Servo positions
 const int servoGrabPos = 45;
 const int servoReleasePos = 120;
+const int doorClosedPos = 0;
+const int doorOpenPos = 90;   // swap these two if it opens the wrong way
 
 // Pseudo-PWM for the rack and pinion
 const unsigned long pwmPeriod = 20;  // ms per cycle (50 Hz)
@@ -55,6 +61,10 @@ void setup()
     carriageServo.setPeriodHertz(50);
     carriageServo.attach(carriageServoPin, 500, 2400);
 
+    doorServo.setPeriodHertz(50);
+    doorServo.attach(doorServoPin, 500, 2400);
+    doorServo.write(doorClosedPos);  // start closed
+
     controller.controllerSetup();
     Serial.begin(115200);
     printMacAddress(); // 80:f3:da:41:25:08
@@ -71,7 +81,7 @@ void loop()
     driveMotor(LeftMotor, leftOutput);
     driveMotor(RightMotor, rightOutput);
 
-    // ---- Servo: press LB to toggle grab/release (once per press) ----
+    // ---- Grab servo: press LB to toggle grab/release (once per press) ----
     static bool wasLbPressed = false;
     static bool servoGrabbed = false;
     bool lbPressed = controller.getLb();
@@ -81,6 +91,17 @@ void loop()
         carriageServo.write(servoGrabbed ? servoGrabPos : servoReleasePos);
     }
     wasLbPressed = lbPressed;
+
+    // ---- Door servo: press RB to toggle open/closed (once per press) ----
+    static bool wasRbPressed = false;
+    static bool doorOpen = false;
+    bool rbPressed = controller.getRb();
+
+    if (rbPressed && !wasRbPressed) {
+        doorOpen = !doorOpen;
+        doorServo.write(doorOpen ? doorOpenPos : doorClosedPos);
+    }
+    wasRbPressed = rbPressed;
 
     // ---- Carriage: hold LT = up, hold RT = down ----
     bool leftTrigger = controller.getLt();
