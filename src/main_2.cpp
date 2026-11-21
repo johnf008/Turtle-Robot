@@ -67,7 +67,7 @@ void setup()
 
     controller.controllerSetup();
     Serial.begin(115200);
-    printMacAddress(); // 80:f3:da:41:25:08
+    printMacAddress(); // 80:f3:da:41:45:a4
 }
 
 void loop()
